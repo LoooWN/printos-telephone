@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Prix plancher" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Prix plancher</title>
+    <style>
+      :root {
+        --bg: #f7f7f2;
+        --text: #27332a;
+        --surface: #fffefa;
+        --border: #dce2d5;
+        --muted: #5e6b60;
+        --accent: #526941;
+        --ok: #2f6b2f;
+        --ok-soft: #e0eed9;
+        --warn: #7f4600;
+        --warn-soft: #fbe9cf;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #171b17;
+          --text: #e7ece4;
+          --surface: #212721;
+          --border: #384238;
+          --muted: #a4b0a2;
+          --accent: #a9c38f;
+          --ok: #a9d99a;
+          --ok-soft: #233a22;
+          --warn: #f2c27d;
+          --warn-soft: #3d2c14;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: max(16px, env(safe-area-inset-top)) 16px 32px;
+        background: var(--bg);
+        color: var(--text);
+        font: 17px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      main {
+        max-width: 560px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.4rem;
+        margin: 0 0 4px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin: 0 0 12px;
+      }
+      input {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        color: inherit;
+        font: inherit;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 12px 0 0;
+      }
+      li button {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px;
+        margin-bottom: 6px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        color: inherit;
+        font: inherit;
+        text-align: left;
+      }
+      li button span:last-child {
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      section {
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+      }
+      h2 {
+        font-size: 1.2rem;
+        margin: 0 0 12px;
+        overflow-wrap: anywhere;
+      }
+      dl {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 6px 12px;
+        margin: 0 0 16px;
+      }
+      dt {
+        color: var(--muted);
+      }
+      dd {
+        margin: 0;
+        font-weight: 600;
+        text-align: right;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      .verdict {
+        margin: 12px 0 0;
+        padding: 12px;
+        border-radius: 10px;
+        font-weight: 600;
+      }
+      .verdict:empty {
+        display: none;
+      }
+      .verdict.accepte {
+        background: var(--ok-soft);
+        color: var(--ok);
+      }
+      .verdict.contre {
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+      .back {
+        margin-bottom: 12px;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: var(--accent);
+        font: inherit;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Prix plancher</h1>
+      <p id="etat" class="muted" role="status">Chargement…</p>
+
+      <div id="liste" hidden>
+        <input id="recherche" type="search" placeholder="Chercher un produit" aria-label="Chercher un produit" autocomplete="off" />
+        <ul id="produits" aria-label="Produits"></ul>
+      </div>
+
+      <div id="detail" hidden>
+        <button id="retour" class="back" type="button">← Tous les produits</button>
+        <section aria-labelledby="nom">
+          <h2 id="nom"></h2>
+          <dl>
+            <dt>Prix affiché</dt>
+            <dd id="prix"></dd>
+            <dt>Prix plancher</dt>
+            <dd id="plancher"></dd>
+          </dl>
+          <label for="offre">Offre reçue (€)</label>
+          <input id="offre" inputmode="decimal" autocomplete="off" />
+          <p id="verdict" class="verdict" aria-live="polite"></p>
+        </section>
+      </div>
+    </main>
+
+    <script type="module">
+      import { parseEuros, verdict } from './verdict.js'
+
+      const $ = (id) => document.getElementById(id)
+      const euros = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' })
+      const fold = (s) => s.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('fr-FR')
+      const store = {
+        get: (key) => {
+          try {
+            return localStorage.getItem(key)
+          } catch {
+            return null
+          }
+        },
+        set: (key, value) => {
+          try {
+            localStorage.setItem(key, value)
+          } catch {
+            // Navigation privée : la page marche, sans garder la liste.
+          }
+        },
+      }
+
+      /** Une liste venue du gist, gardée seulement si elle a la forme attendue. */
+      function readList(text) {
+        const list = JSON.parse(text)
+        const ok =
+          list &&
+          typeof list.updatedAt === 'string' &&
+          Array.isArray(list.products) &&
+          list.products.every((p) => typeof p.name === 'string' && Number.isInteger(p.priceCents) && Number.isInteger(p.floorCents))
+        if (!ok) throw new Error('liste illisible')
+        return list
+      }
+
+      let products = []
+      let current = null
+
+      function showList() {
+        current = null
+        $('detail').hidden = true
+        $('liste').hidden = false
+        const query = fold($('recherche').value.trim())
+        const shown = products.filter((p) => fold(p.name).includes(query))
+        $('produits').replaceChildren(
+          ...shown.map((p) => {
+            const button = document.createElement('button')
+            button.type = 'button'
+            const name = document.createElement('span')
+            name.textContent = p.name
+            const price = document.createElement('span')
+            price.textContent = euros.format(p.priceCents / 100)
+            button.append(name, price)
+            button.addEventListener('click', () => showProduct(p))
+            const li = document.createElement('li')
+            li.append(button)
+            return li
+          }),
+        )
+      }
+
+      function showProduct(p) {
+        current = p
+        $('liste').hidden = true
+        $('detail').hidden = false
+        $('nom').textContent = p.name
+        $('prix').textContent = euros.format(p.priceCents / 100)
+        $('plancher').textContent = euros.format(p.floorCents / 100)
+        $('offre').value = ''
+        showVerdict()
+        $('offre').focus()
+      }
+
+      function showVerdict() {
+        const out = $('verdict')
+        const offer = parseEuros($('offre').value)
+        out.className = 'verdict'
+        if (!current || offer === null) return (out.textContent = '')
+        const v = verdict(offer, current.priceCents, current.floorCents)
+        out.classList.add(v.kind)
+        out.textContent = v.kind === 'accepte' ? 'Accepte' : `Contre-propose ${euros.format(v.counterCents / 100)} — sous ton plancher`
+      }
+
+      function useList(list, note) {
+        products = [...list.products].sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+        const date = new Date(list.updatedAt).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
+        $('etat').textContent = note ? `Liste du ${date} : ${note}` : `${products.length} produits, liste du ${date}.`
+        showList()
+      }
+
+      async function start() {
+        // L'adresse du gist arrive après le # (jamais envoyée au serveur de la page) ; seulement des chiffres et des lettres.
+        const fromLink = location.hash.slice(1)
+        if (/^[0-9a-f]+$/i.test(fromLink)) store.set('gist', fromLink)
+        const gist = store.get('gist')
+        const saved = store.get('liste')
+        if (!gist || !/^[0-9a-f]+$/i.test(gist)) {
+          $('etat').textContent = 'Ouvre le lien donné par PrintOS (Réglages → Téléphone).'
+          return
+        }
+        try {
+          const response = await fetch(`https://api.github.com/gists/${gist}`, { headers: { Accept: 'application/vnd.github+json' } })
+          if (!response.ok) throw new Error(`GitHub ${response.status}`)
+          const text = (await response.json()).files?.['printos-prix.json']?.content
+          const list = readList(text)
+          store.set('liste', JSON.stringify(list))
+          useList(list)
+        } catch {
+          try {
+            if (saved) return useList(readList(saved), 'pas de réseau.')
+          } catch {
+            // Liste gardée abîmée : on le dit comme s'il n'y en avait pas.
+          }
+          $('etat').textContent = 'Impossible de lire la liste : vérifie le réseau, puis rouvre la page.'
+        }
+      }
+
+      $('recherche').addEventListener('input', showList)
+      $('offre').addEventListener('input', showVerdict)
+      $('retour').addEventListener('click', showList)
+      start()
+    </script>
+  </body>
+</html>
