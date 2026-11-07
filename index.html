@@ -264,7 +264,9 @@
       function useList(list, note) {
         products = [...list.products].sort((a, b) => a.name.localeCompare(b.name, 'fr'))
         const date = new Date(list.updatedAt).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
-        $('etat').textContent = note ? `Liste du ${date} : ${note}` : `${products.length} produits, liste du ${date}.`
+        $('etat').textContent = note
+          ? `Liste du ${date} : ${note}`
+          : `${products.length} produit${products.length > 1 ? 's' : ''}, liste du ${date}.`
         showList()
       }
 
