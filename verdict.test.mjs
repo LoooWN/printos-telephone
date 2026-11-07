@@ -13,9 +13,9 @@ test('prix 15 €, plancher 9 € : sous le plancher, contre-proposition au mili
   assert.deepEqual(verdict(100, 1500, 900), { kind: 'contre', counterCents: 900 }) // milieu 8 € → le plancher
 })
 
-test('plancher au-dessus du prix affiché : jamais plus que le prix affiché', () => {
+test('prix affiché déjà sous le plancher : accepte au prix affiché, sinon tiens ce prix', () => {
   assert.deepEqual(verdict(800, 800, 900), { kind: 'accepte' })
-  assert.deepEqual(verdict(700, 800, 900), { kind: 'contre', counterCents: 800 })
+  assert.deepEqual(verdict(700, 800, 900), { kind: 'tenir', priceCents: 800 })
 })
 
 test('lit une offre tapée en euros, virgule ou point', () => {

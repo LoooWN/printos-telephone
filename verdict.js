@@ -3,11 +3,12 @@
 const euroUp = (cents) => Math.ceil(cents / 100) * 100
 
 /**
- * Offre ≥ plancher (ou ≥ prix affiché) : « accepte ». Sinon « contre » : le milieu entre l'offre et le prix affiché,
- * arrondi à l'euro supérieur, jamais sous le plancher ni au-dessus du prix affiché.
+ * Offre ≥ plancher (ou ≥ prix affiché) : « accepte ». Prix affiché déjà sous le plancher : « tenir » ce prix. Sinon
+ * « contre » : le milieu entre l'offre et le prix affiché, arrondi à l'euro supérieur, jamais sous le plancher.
  */
 export function verdict(offerCents, priceCents, floorCents) {
   if (offerCents >= floorCents || offerCents >= priceCents) return { kind: 'accepte' }
+  if (floorCents >= priceCents) return { kind: 'tenir', priceCents }
   const counterCents = Math.min(priceCents, Math.max(floorCents, euroUp((offerCents + priceCents) / 2)))
   return { kind: 'contre', counterCents }
 }

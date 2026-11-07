@@ -134,9 +134,17 @@
         background: var(--ok-soft);
         color: var(--ok);
       }
-      .verdict.contre {
+      .verdict.contre,
+      .verdict.tenir,
+      .alerte {
         background: var(--warn-soft);
         color: var(--warn);
+      }
+      .alerte {
+        margin: -4px 0 16px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 0.95rem;
       }
       .back {
         margin-bottom: 12px;
@@ -171,6 +179,7 @@
             <dt>Prix plancher</dt>
             <dd id="plancher"></dd>
           </dl>
+          <p id="alerte" class="alerte" hidden>Ton prix affiché est sous ton plancher : pense à le remonter dans PrintOS.</p>
           <label for="offre">Offre reçue (€)</label>
           <input id="offre" inputmode="decimal" autocomplete="off" />
           <p id="verdict" class="verdict" aria-live="polite"></p>
@@ -246,6 +255,7 @@
         $('nom').textContent = p.name
         $('prix').textContent = euros.format(p.priceCents / 100)
         $('plancher').textContent = euros.format(p.floorCents / 100)
+        $('alerte').hidden = p.floorCents <= p.priceCents
         $('offre').value = ''
         showVerdict()
         $('offre').focus()
@@ -258,7 +268,12 @@
         if (!current || offer === null) return (out.textContent = '')
         const v = verdict(offer, current.priceCents, current.floorCents)
         out.classList.add(v.kind)
-        out.textContent = v.kind === 'accepte' ? 'Accepte' : `Contre-propose ${euros.format(v.counterCents / 100)} — sous ton plancher`
+        out.textContent =
+          v.kind === 'accepte'
+            ? 'Accepte'
+            : v.kind === 'tenir'
+              ? `Reste à ${euros.format(v.priceCents / 100)} : ton prix affiché est déjà sous ton plancher`
+              : `Contre-propose ${euros.format(v.counterCents / 100)} — sous ton plancher`
       }
 
       function useList(list, note) {

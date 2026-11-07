@@ -7,6 +7,6 @@ secret que PrintOS met à jour, dont l'adresse suit le `#` du lien donné par Pr
 la dernière liste reçue sur le téléphone.
 
 - `index.html` : la page.
-- `verdict.js` : la règle (accepter dès le plancher, sinon contre-proposer le milieu entre l'offre et le prix affiché,
+- `verdict.js` : la règle (accepter dès le plancher ; prix affiché déjà sous le plancher : tenir ce prix ; sinon contre-proposer le milieu entre l'offre et le prix affiché,
   arrondi à l'euro supérieur, jamais sous le plancher ni au-dessus du prix).
 - Vérifier la règle : `node --test`.
