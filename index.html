@@ -154,6 +154,34 @@
         color: var(--accent);
         font: inherit;
       }
+      .action {
+        width: 100%;
+        margin-bottom: 12px;
+        padding: 12px;
+        border: 1px solid var(--accent);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--accent);
+        font: inherit;
+        font-weight: 600;
+      }
+      .champ {
+        margin-bottom: 12px;
+      }
+      .champ .muted {
+        margin: 6px 0 0;
+      }
+      #resultat {
+        margin: 16px 0 0;
+        column-gap: 0;
+      }
+      #calcul-alerte {
+        margin: 12px 0 0;
+      }
+      #resultat .total {
+        padding-top: 6px;
+        border-top: 1px solid var(--border);
+      }
       [hidden] {
         display: none !important;
       }
@@ -165,6 +193,7 @@
       <p id="etat" class="muted" role="status">Chargement…</p>
 
       <div id="liste" hidden>
+        <button id="ouvrir-calcul" class="action" type="button">Calculer un prix (poids et durée)</button>
         <input id="recherche" type="search" placeholder="Chercher un produit" aria-label="Chercher un produit" autocomplete="off" />
         <ul id="produits" aria-label="Produits"></ul>
       </div>
@@ -185,10 +214,39 @@
           <p id="verdict" class="verdict" aria-live="polite"></p>
         </section>
       </div>
+
+      <div id="calcul" hidden>
+        <button id="retour-calcul" class="back" type="button">← Tous les produits</button>
+        <section aria-labelledby="titre-calcul">
+          <h2 id="titre-calcul">Calculer un prix</h2>
+          <p class="muted">Pour une version qui n'est pas dans la liste : plus petite, sans couvercle, un élément seul…</p>
+          <p id="calcul-inactif" class="alerte" hidden>
+            Calculateur pas encore activé : dans PrintOS, Réglages → Téléphone → « Relier le téléphone », puis rouvre la page.
+          </p>
+          <div id="calcul-champs">
+            <div class="champ">
+              <label for="poids">Poids (g)</label>
+              <input id="poids" inputmode="decimal" autocomplete="off" />
+            </div>
+            <div class="champ">
+              <label for="duree">Durée</label>
+              <input id="duree" inputmode="decimal" autocomplete="off" aria-describedby="duree-aide" />
+              <p id="duree-aide" class="muted">2,8 comme sur MakerWorld, ou 2&nbsp;h&nbsp;48</p>
+            </div>
+            <div class="champ">
+              <label for="prix-envisage">Prix envisagé (€, facultatif)</label>
+              <input id="prix-envisage" inputmode="decimal" autocomplete="off" />
+            </div>
+            <dl id="resultat" aria-live="polite" hidden></dl>
+            <p id="calcul-alerte" class="alerte" hidden></p>
+          </div>
+        </section>
+      </div>
     </main>
 
     <script type="module">
       import { parseEuros, verdict } from './verdict.js'
+      import { cost, floorPrice, margin, parseDuration, parseGrams, readCosts, suggestedPrice } from './calcul.js'
 
       const $ = (id) => document.getElementById(id)
       const euros = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' })
@@ -224,10 +282,13 @@
 
       let products = []
       let current = null
+      /** Réglages de coût envoyés par PrintOS 2.16 ; null avant, et le calculateur dit comment l'activer. */
+      let costs = null
 
       function showList() {
         current = null
         $('detail').hidden = true
+        $('calcul').hidden = true
         $('liste').hidden = false
         const query = fold($('recherche').value.trim())
         const shown = products.filter((p) => fold(p.name).includes(query))
@@ -276,7 +337,65 @@
               : `Contre-propose ${euros.format(v.counterCents / 100)} — sous ton plancher`
       }
 
+      const money = (cents) => euros.format(cents / 100)
+      const duration = (minutes) => {
+        const h = Math.floor(minutes / 60)
+        const m = minutes % 60
+        return h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, '0')}`
+      }
+
+      function showCalc() {
+        $('liste').hidden = true
+        $('detail').hidden = true
+        $('calcul').hidden = false
+        $('calcul-inactif').hidden = costs !== null
+        $('calcul-champs').hidden = costs === null
+        showCalcResult()
+        if (costs) $('poids').focus()
+      }
+
+      /** Coût ligne par ligne, prix conseillé et plancher ; avec un prix envisagé, bénéfice et marge. */
+      function showCalcResult() {
+        const out = $('resultat')
+        const alert = $('calcul-alerte')
+        const grams = parseGrams($('poids').value)
+        const minutes = parseDuration($('duree').value)
+        out.hidden = alert.hidden = true
+        if (!costs || grams === null || minutes === null) return
+        const c = cost(grams, minutes, costs)
+        const rows = [['Durée', duration(minutes)], ...c.lines.map((l) => [l.label, l.cents === null ? 'inconnu' : money(l.cents)])]
+        if (c.totalCents === null) {
+          alert.textContent = 'Prix du filament inconnu : ajoute une bobine PLA dans PrintOS.'
+          alert.hidden = false
+        } else {
+          const floor = floorPrice(c.totalCents, costs)
+          rows.push(['Coût', money(c.totalCents), true], ['Prix conseillé', money(suggestedPrice(c.totalCents, costs))], ['Prix plancher', money(floor)])
+          const price = parseEuros($('prix-envisage').value)
+          if (price !== null) {
+            const { profitCents, percent } = margin(price, c.totalCents)
+            rows.push(['Bénéfice', money(profitCents), true], ['Marge', percent === null ? '—' : `${percent} %`])
+            if (price < floor) {
+              alert.textContent =
+                profitCents < 0 ? `Sous ton coût : tu perds ${money(-profitCents)}.` : `Sous ton plancher (${money(floor)}).`
+              alert.hidden = false
+            }
+          }
+        }
+        out.replaceChildren(
+          ...rows.flatMap(([label, value, total]) => {
+            const dt = document.createElement('dt')
+            const dd = document.createElement('dd')
+            dt.textContent = label
+            dd.textContent = value
+            if (total) dt.className = dd.className = 'total'
+            return [dt, dd]
+          }),
+        )
+        out.hidden = false
+      }
+
       function useList(list, note) {
+        costs = readCosts(list.costs)
         products = [...list.products].sort((a, b) => a.name.localeCompare(b.name, 'fr'))
         const date = new Date(list.updatedAt).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
         $('etat').textContent = note
@@ -315,6 +434,9 @@
       $('recherche').addEventListener('input', showList)
       $('offre').addEventListener('input', showVerdict)
       $('retour').addEventListener('click', showList)
+      $('ouvrir-calcul').addEventListener('click', showCalc)
+      $('retour-calcul').addEventListener('click', showList)
+      for (const id of ['poids', 'duree', 'prix-envisage']) $(id).addEventListener('input', showCalcResult)
       start()
     </script>
   </body>
