@@ -58,11 +58,11 @@ export function parseGrams(text) {
 
 const NUMBERS = ['electricityCentsPerKwh', 'printerWatts', 'wearCentsPerHour', 'packagingCents', 'targetMarginPercent', 'floorMinProfitCents', 'floorMinMarginPercent']
 
-/** Réglages venus du gist, gardés seulement complets ; null avant PrintOS 2.16 ou s'ils sont abîmés. */
+/** Réglages venus du gist, gardés seulement complets ; null avant PrintOS 2.16 ou s'ils sont abîmés. Un PLA à 0 € (bobine offerte) compte, comme dans PrintOS. */
 export function readCosts(costs) {
   if (!costs || typeof costs !== 'object') return null
   const filament = costs.filamentCentsPerGram
-  if (filament !== null && !(Number.isFinite(filament) && filament > 0)) return null
+  if (filament !== null && !(Number.isFinite(filament) && filament >= 0)) return null
   if (!NUMBERS.every((key) => Number.isFinite(costs[key]) && costs[key] >= 0)) return null
   return Object.fromEntries([['filamentCentsPerGram', filament], ...NUMBERS.map((key) => [key, costs[key]])])
 }
