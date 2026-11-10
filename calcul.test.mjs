@@ -76,6 +76,8 @@ test('poids : grammes positifs, virgule ou point', () => {
 test('réglages venus du gist : gardés seulement complets', () => {
   assert.deepEqual(readCosts(reglages), reglages)
   assert.deepEqual(readCosts({ ...reglages, filamentCentsPerGram: null }), { ...reglages, filamentCentsPerGram: null })
+  assert.deepEqual(readCosts({ ...reglages, filamentCentsPerGram: 0 }), { ...reglages, filamentCentsPerGram: 0 })
+  assert.equal(readCosts({ ...reglages, filamentCentsPerGram: -1 }), null)
   assert.equal(readCosts(undefined), null)
   assert.equal(readCosts({ ...reglages, packagingCents: '100' }), null)
   assert.equal(readCosts({ ...reglages, printerWatts: undefined }), null)
